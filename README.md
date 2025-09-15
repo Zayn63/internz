@@ -1,61 +1,75 @@
-# 🚀 Getting started with Strapi
+🚀 Task ! Overview
+Strapi Setup 
 
-Strapi comes with a full featured [Command Line Interface](https://docs.strapi.io/dev-docs/cli) (CLI) which lets you scaffold and manage your project in seconds.
+This task involved:
 
-### `develop`
+Cloning the official Strapi repository.
 
-Start your Strapi application with autoReload enabled. [Learn more](https://docs.strapi.io/dev-docs/cli#strapi-develop)
+Running Strapi locally.
 
-```
-npm run develop
-# or
-yarn develop
-```
+Exploring the project folder structure.
 
-### `start`
+Starting the Admin Panel.
 
-Start your Strapi application with autoReload disabled. [Learn more](https://docs.strapi.io/dev-docs/cli#strapi-start)
+Creating a sample content type.
 
-```
-npm run start
-# or
-yarn start
-```
+Pushing your setup to GitHub.
 
-### `build`
+Recording a Loom video walkthrough.
 
-Build your admin panel. [Learn more](https://docs.strapi.io/dev-docs/cli#strapi-build)
+✅ Prerequisites
 
-```
-npm run build
-# or
-yarn build
-```
+Node.js (LTS, v20 recommended)
 
-## ⚙️ Deployment
+Git
 
-Strapi gives you many possible deployment options for your project including [Strapi Cloud](https://cloud.strapi.io). Browse the [deployment section of the documentation](https://docs.strapi.io/dev-docs/deployment) to find the best solution for your use case.
+Yarn or npm
 
-```
-yarn strapi deploy
-```
+A GitHub account
 
-## 📚 Learn more
+A browser (Chrome/Edge)
 
-- [Resource center](https://strapi.io/resource-center) - Strapi resource center.
-- [Strapi documentation](https://docs.strapi.io) - Official Strapi documentation.
-- [Strapi tutorials](https://strapi.io/tutorials) - List of tutorials made by the core team and the community.
-- [Strapi blog](https://strapi.io/blog) - Official Strapi blog containing articles made by the Strapi team and the community.
-- [Changelog](https://strapi.io/changelog) - Find out about the Strapi product updates, new features and general improvements.
+Steps:
 
-Feel free to check out the [Strapi GitHub repository](https://github.com/strapi/strapi). Your feedback and contributions are welcome!
+1. Clone Strapi Core Repository
+cd D:\Projects
+git clone https://github.com/strapi/strapi Strapi-core
+cd Strapi-core
 
-## ✨ Community
 
-- [Discord](https://discord.strapi.io) - Come chat with the Strapi community including the core team.
-- [Forum](https://forum.strapi.io/) - Place to discuss, ask questions and find answers, show your Strapi project and get feedback or just talk with other Community members.
-- [Awesome Strapi](https://github.com/strapi/awesome-strapi) - A curated list of awesome things related to Strapi.
+👉 This repo is for exploration. Check packages/, examples/, and docs/.
 
----
+2. Create a New Strapi App (for running locally)
+cd D:\Projects
+npx create-strapi@latest my-strapi-app --quickstart
+cd my-strapi-app
+yarn develop   # or: npm run develop
 
-<sub>🤫 Psst! [Strapi is hiring](https://strapi.io/careers).</sub>
+
+👉 By default, Strapi uses SQLite, so no extra DB setup is needed.
+
+3. Start Admin Panel
+
+Open http://localhost:1337/admin
+
+Register an admin user (email + password)
+
+4. Create a Sample Content Type
+
+Go to Content-Types Builder → Create new collection type
+
+Example: Project with fields:
+
+title → Short text
+
+description → Rich text
+
+start_date → Date
+
+cover_image → Media (single image)
+
+Save & restart Strapi (it rebuilds automatically).
+
+Go to Content Manager → add a sample entry.
+
+5. Pushed Project to GitHub
