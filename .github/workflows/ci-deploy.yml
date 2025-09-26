@@ -8,19 +8,21 @@ on:
 env:
   AWS_REGION: ap-south-1
   ECR_REPOSITORY: zayn-strapi
-  ECS_CLUSTER: zayn-ecs-cluster
-  ECS_SERVICE: zayn-strapi-service
-  TASK_FAMILY: zayn-strapi-taskdef
-  CONTAINER_NAME: zayn-strapi-container
+  ECS_CLUSTER: z-strapi-cluster
+  ECS_SERVICE: z-strapi-service
+  TASK_FAMILY: z-strapi-task
+  CONTAINER_NAME: z-strapi-container
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout code
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # 2️⃣ Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -28,10 +30,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      # 3️⃣ Login to Amazon ECR
       - name: Login to Amazon ECR
         id: ecr-login
         uses: aws-actions/amazon-ecr-login@v2
 
+      # 4️⃣ Build, tag, and push Docker image
       - name: Build, tag, and push Docker image
         run: |
           IMAGE_TAG=${{ github.sha }}
@@ -41,6 +45,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
 
+      # 5️⃣ Render new ECS task definition revision
       - name: Render new ECS task definition
         id: taskdef
         run: |
@@ -48,8 +53,8 @@ jobs:
           cat <<EOF > taskdef.json
           {
             "family": "$TASK_FAMILY",
-            "executionRoleArn": "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/zayn-ecs-task-exec-role",
-            "taskRoleArn": "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/zayn-ecs-task-role",
+            "executionRoleArn": "${{ secrets.ECS_EXEC_ROLE_ARN }}",
+            "taskRoleArn": "${{ secrets.ECS_TASK_ROLE_ARN }}",
             "networkMode": "awsvpc",
             "containerDefinitions": [
               {
@@ -78,11 +83,13 @@ jobs:
           }
           EOF
 
-      - name: Register new task definition
+      # 6️⃣ Register new task definition revision
+      - name: Register new ECS task definition
         run: |
           aws ecs register-task-definition \
             --cli-input-json file://taskdef.json
 
+      # 7️⃣ Update ECS service to use the new task definition revision
       - name: Update ECS service
         run: |
           aws ecs update-service \
