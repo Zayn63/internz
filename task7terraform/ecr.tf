@@ -1,9 +1,10 @@
 resource "aws_ecr_repository" "zayn_strapi" {
-name = "${var.prefix}-strapi"
-image_tag_mutability = "MUTABLE"
-tags = {
-Name = "${var.prefix}-strapi"
-}
+  name                 = "zayn-strapi"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
 }
 
 
