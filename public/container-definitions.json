@@ -1,0 +1,20 @@
+[
+  {
+    "name": "strapi",
+    "image": "145065858967.dkr.ecr.ap-south-1.amazonaws.com/z-strapi:latest",
+    "essential": true,
+    "portMappings": [
+      {
+        "containerPort": 1337,
+        "hostPort": 1337,
+        "protocol": "tcp"
+      }
+    ],
+    "environment": [
+      {
+        "name": "APP_KEYS",
+        "value": "4ca2a2badb00faacd1bfc87b3a9572325f7f70a90267ce90a0b7b9319d14516d,895595019e3de2527424ebda23eaf71cc20522c478204849b2944aafc8e33391"
+      }
+    ]
+  }
+]

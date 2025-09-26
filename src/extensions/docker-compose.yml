@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgres:15
+    container_name: strapi-db
+    restart: always
+    environment:
+      POSTGRES_USER: strapi
+      POSTGRES_PASSWORD: strapi
+      POSTGRES_DB: strapi
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - strapi-net
+
+  strapi:
+    build: .
+    container_name: strapi-app
+    restart: always
+    env_file: .env
+    ports:
+      - "1337:1337"
+    depends_on:
+      - db
+    volumes:
+      - ./config:/app/config
+      - ./src:/app/src
+      - ./package.json:/app/package.json
+      - ./yarn.lock:/app/yarn.lock
+      - ./.env:/app/.env
+    networks:
+      - strapi-net
+
+  nginx:
+    image: nginx:alpine
+    container_name: strapi-nginx
+    restart: always
+    ports:
+      - "8080:80"   # use 8080 on host instead of 80 to avoid conflict
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - strapi
+    networks:
+      - strapi-net
+
+volumes:
+  postgres-data:
+
+networks:
+  strapi-net:
+    driver: bridge

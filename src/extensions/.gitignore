@@ -1,0 +1,65 @@
+############################
+# System files
+############################
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+############################
+# Node.js dependencies
+############################
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+############################
+# Strapi build/runtime
+############################
+.cache/
+dist/
+build/
+.strapi/
+.strapi-updater.json
+.strapi-cloud.json
+
+############################
+# Environment files
+############################
+.env
+.env.local
+.env.*.local
+
+############################
+# Logs and temporary files
+############################
+*.log
+*.tmp
+*.pid
+*.seed
+*.pid.lock
+
+############################
+# Database (optional)
+############################
+*.sqlite
+*.sqlite3
+
+# If you want to share demo DB, comment the above line.
+
+############################
+# Uploads
+############################
+public/uploads/*
+!public/uploads/.gitkeep
+
+############################
+# Misc
+############################
+.idea/
+.vscode/
+.eslintcache
+.tsbuildinfo
+coverage/
