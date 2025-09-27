@@ -16,13 +16,10 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-      # 1️⃣ Checkout code
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2️⃣ Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -30,69 +27,71 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # 3️⃣ Login to Amazon ECR
-      - name: Login to Amazon ECR
-        id: ecr-login
+      - name: Log in to Amazon ECR
+        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # 4️⃣ Build, tag, and push Docker image
-      - name: Build, tag, and push Docker image
+      - name: Build, tag, and push image to Amazon ECR
         run: |
           IMAGE_TAG=${{ github.sha }}
           docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REPOSITORY:$IMAGE_TAG ${{ steps.ecr-login.outputs.registry }}/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push ${{ steps.ecr-login.outputs.registry }}/$ECR_REPOSITORY:$IMAGE_TAG
+          docker tag $ECR_REPOSITORY:$IMAGE_TAG ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:$IMAGE_TAG
         env:
-          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
 
-      # 5️⃣ Render new ECS task definition revision
-      - name: Render new ECS task definition
-        id: taskdef
+      - name: Register new task definition revision
         run: |
-          IMAGE="${{ steps.ecr-login.outputs.registry }}/$ECR_REPOSITORY:${{ github.sha }}"
-          cat <<EOF > taskdef.json
-          {
-            "family": "$TASK_FAMILY",
-            "executionRoleArn": "${{ secrets.ECS_EXEC_ROLE_ARN }}",
-            "taskRoleArn": "${{ secrets.ECS_TASK_ROLE_ARN }}",
-            "networkMode": "awsvpc",
-            "containerDefinitions": [
-              {
-                "name": "$CONTAINER_NAME",
-                "image": "$IMAGE",
-                "essential": true,
-                "portMappings": [
-                  {
-                    "containerPort": 1337,
-                    "protocol": "tcp"
-                  }
-                ],
-                "logConfiguration": {
-                  "logDriver": "awslogs",
-                  "options": {
-                    "awslogs-group": "/ecs/$TASK_FAMILY",
-                    "awslogs-region": "$AWS_REGION",
-                    "awslogs-stream-prefix": "ecs"
+          IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}"
+
+          TASK_DEF=$(jq -n \
+            --arg family "${{ env.TASK_FAMILY }}" \
+            --arg executionRoleArn "${{ secrets.ECS_EXECUTION_ROLE_ARN }}" \
+            --arg containerName "${{ env.CONTAINER_NAME }}" \
+            --arg image "$IMAGE" \
+            '{
+              family: $family,
+              networkMode: "awsvpc",
+              requiresCompatibilities: ["FARGATE"],
+              cpu: "512",
+              memory: "1024",
+              executionRoleArn: $executionRoleArn,
+              containerDefinitions: [
+                {
+                  name: $containerName,
+                  image: $image,
+                  essential: true,
+                  portMappings: [
+                    {
+                      containerPort: 1337,
+                      protocol: "tcp"
+                    }
+                  ],
+                  logConfiguration: {
+                    logDriver: "awslogs",
+                    options: {
+                      "awslogs-group": "/ecs/strapi",
+                      "awslogs-region": "${{ env.AWS_REGION }}",
+                      "awslogs-stream-prefix": "ecs"
+                    }
                   }
                 }
-              }
-            ],
-            "requiresCompatibilities": ["FARGATE"],
-            "cpu": "512",
-            "memory": "1024"
-          }
-          EOF
+              ]
+            }')
 
-      # 6️⃣ Register new task definition revision
-      - name: Register new ECS task definition
-        run: |
+          echo "$TASK_DEF" > task-def.json
+
           aws ecs register-task-definition \
-            --cli-input-json file://taskdef.json
+            --cli-input-json file://task-def.json
 
-      # 7️⃣ Update ECS service to use the new task definition revision
-      - name: Update ECS service
+      - name: Update ECS service to use new task definition
         run: |
+          NEW_REVISION=$(aws ecs describe-task-definition \
+            --task-definition ${{ env.TASK_FAMILY }} \
+            --query 'taskDefinition.revision' \
+            --output text)
+
           aws ecs update-service \
-            --cluster $ECS_CLUSTER \
-            --service $ECS_SERVICE \
-            --force-new-deployment
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.ECS_SERVICE }} \
+            --task-definition ${{ env.TASK_FAMILY }}:$NEW_REVISION
