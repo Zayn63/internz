@@ -1,23 +1,23 @@
-name: CI/CD - Strapi ECS Fargate
+name: CI/CD - Strapi ECS
 
 on:
   push:
     branches:
-      - main
+      - main   # deploy when pushing to main
 
 env:
   AWS_REGION: ap-south-1
   ECR_REPOSITORY: zayn-strapi
   ECS_CLUSTER: z-strapi-cluster
   ECS_SERVICE: z-strapi-service
-  TASK_FAMILY: z-strapi-task
-  CONTAINER_NAME: z-strapi-container
+  TASK_DEFINITION_FAMILY: z-strapi-taskdef
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v3
 
       - name: Configure AWS credentials
@@ -31,67 +31,61 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, tag, and push image to Amazon ECR
+      - name: Build, tag, and push Docker image to ECR
         run: |
           IMAGE_TAG=${{ github.sha }}
-          docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REPOSITORY:$IMAGE_TAG ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:$IMAGE_TAG
-        env:
-          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+          IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG
+          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+          docker build -t $IMAGE_URI .
+          docker push $IMAGE_URI
 
-      - name: Register new task definition revision
+      - name: Render new ECS task definition
+        id: task-def
         run: |
-          IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}"
-
-          TASK_DEF=$(jq -n \
-            --arg family "${{ env.TASK_FAMILY }}" \
-            --arg executionRoleArn "${{ secrets.ECS_EXECUTION_ROLE_ARN }}" \
-            --arg containerName "${{ env.CONTAINER_NAME }}" \
-            --arg image "$IMAGE" \
-            '{
-              family: $family,
-              networkMode: "awsvpc",
-              requiresCompatibilities: ["FARGATE"],
-              cpu: "512",
-              memory: "1024",
-              executionRoleArn: $executionRoleArn,
-              containerDefinitions: [
-                {
-                  name: $containerName,
-                  image: $image,
-                  essential: true,
-                  portMappings: [
-                    {
-                      containerPort: 1337,
-                      protocol: "tcp"
-                    }
-                  ],
-                  logConfiguration: {
-                    logDriver: "awslogs",
-                    options: {
-                      "awslogs-group": "/ecs/strapi",
-                      "awslogs-region": "${{ env.AWS_REGION }}",
-                      "awslogs-stream-prefix": "ecs"
-                    }
+          cat <<EOF > taskdef.json
+          {
+            "family": "${TASK_DEFINITION_FAMILY}",
+            "executionRoleArn": "arn:aws:iam::145065858967:role/zayn-ecs-task-exec-role",
+            "networkMode": "awsvpc",
+            "requiresCompatibilities": ["FARGATE"],
+            "cpu": "512",
+            "memory": "1024",
+            "containerDefinitions": [
+              {
+                "name": "strapi",
+                "image": "${IMAGE_URI}",
+                "portMappings": [
+                  {
+                    "containerPort": 1337,
+                    "protocol": "tcp"
+                  }
+                ],
+                "essential": true,
+                "logConfiguration": {
+                  "logDriver": "awslogs",
+                  "options": {
+                    "awslogs-group": "/ecs/z-strapi",
+                    "awslogs-region": "${AWS_REGION}",
+                    "awslogs-stream-prefix": "ecs"
                   }
                 }
-              ]
-            }')
+              }
+            ]
+          }
+          EOF
 
-          echo "$TASK_DEF" > task-def.json
-
+      - name: Register new task definition
+        run: |
           aws ecs register-task-definition \
-            --cli-input-json file://task-def.json
+            --cli-input-json file://taskdef.json
 
       - name: Update ECS service to use new task definition
         run: |
-          NEW_REVISION=$(aws ecs describe-task-definition \
-            --task-definition ${{ env.TASK_FAMILY }} \
-            --query 'taskDefinition.revision' \
-            --output text)
+          LATEST_REVISION=$(aws ecs describe-task-definition \
+            --task-definition ${TASK_DEFINITION_FAMILY} \
+            --query 'taskDefinition.revision' --output text)
 
           aws ecs update-service \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --service ${{ env.ECS_SERVICE }} \
-            --task-definition ${{ env.TASK_FAMILY }}:$NEW_REVISION
+            --cluster ${ECS_CLUSTER} \
+            --service ${ECS_SERVICE} \
+            --task-definition ${TASK_DEFINITION_FAMILY}:$LATEST_REVISION
