@@ -1,4 +1,4 @@
-name: CI/CD - Strapi ECS Fargate (Terraform)
+name: CI/CD - Strapi ECS Fargate
 
 on:
   push:
@@ -8,14 +8,22 @@ on:
 env:
   AWS_REGION: ap-south-1
   ECR_REPOSITORY: zayn-strapi
+  ECS_CLUSTER: z-strapi-cluster
+  ECS_SERVICE: z-strapi-service
+  TASK_FAMILY: z-strapi-task
+  CONTAINER_NAME: z-strapi-container
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # ----------------------------
+      # Configure AWS Credentials
+      # ----------------------------
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -23,11 +31,17 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      # ----------------------------
+      # Log in to Amazon ECR
+      # ----------------------------
       - name: Log in to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, tag, and push image to Amazon ECR
+      # ----------------------------
+      # Build, tag, and push Docker image
+      # ----------------------------
+      - name: Build, tag, and push Docker image
         run: |
           IMAGE_TAG=${{ github.sha }}
           docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
@@ -36,19 +50,42 @@ jobs:
         env:
           ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
 
+      # ----------------------------
+      # Setup Terraform
+      # ----------------------------
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.5
 
+      # ----------------------------
+      # Terraform Init
+      # ----------------------------
       - name: Terraform Init
         working-directory: ./terraform
         run: terraform init -input=false
 
-      - name: Terraform Apply (Deploy new image)
+      # ----------------------------
+      # Terraform Validate
+      # ----------------------------
+      - name: Terraform Validate
+        working-directory: ./terraform
+        run: terraform validate
+
+      # ----------------------------
+      # Terraform Plan (optional, for logs)
+      # ----------------------------
+      - name: Terraform Plan
         working-directory: ./terraform
         env:
           TF_VAR_image_tag: ${{ github.sha }}
-        run: terraform apply -auto-approve -input=false
+        run: terraform plan -input=false -var "image_tag=${{ github.sha }}"
 
+      # ----------------------------
+      # Terraform Apply (Deploy new image)
+      # ----------------------------
+      - name: Terraform Apply
+        working-directory: ./terraform
+        env:
+          TF_VAR_image_tag: ${{ github.sha }}
         run: terraform apply -auto-approve -input=false
