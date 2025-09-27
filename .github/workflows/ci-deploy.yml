@@ -36,6 +36,11 @@ jobs:
         env:
           ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
 
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.5
+
       - name: Terraform Init
         working-directory: ./terraform
         run: terraform init -input=false
@@ -44,4 +49,6 @@ jobs:
         working-directory: ./terraform
         env:
           TF_VAR_image_tag: ${{ github.sha }}
+        run: terraform apply -auto-approve -input=false
+
         run: terraform apply -auto-approve -input=false
