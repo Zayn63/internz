@@ -1,55 +1,46 @@
-name: CI - Build & Push Dockername: CD - Terraform deploy to EC2
+name: CD - Terraform deploy to EC2
+
 on:
-workflow_dispatch:
-inputs:
-image_tag:
-description: 'Docker image tag (e.g. short sha). Leave blank to use "latest".'
-required: false
-default: ''
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Docker image tag (e.g. short sha). Leave blank to use "latest".'
+        required: false
+        default: ''
 
 jobs:
-terraform:
-runs-on: ubuntu-latest
+  terraform:
+    runs-on: ubuntu-latest
 
-steps:
-- name: Checkout
-uses: actions/checkout@v4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-- name: Setup Terraform
-uses: hashicorp/setup-terraform@v2
-with:
-terraform_version: 1.5.0
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
 
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
 
-- name: Configure AWS Credentials
-uses: aws-actions/configure-aws-credentials@v2
-with:
-aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-aws-region: ap-south-1
+      - name: Prepare terraform variables
+        run: |
+          if [ "${{ github.event.inputs.image_tag }}" = "" ]; then
+            echo "image_tag=latest" >> tfvars.env
+          else
+            echo "image_tag=${{ github.event.inputs.image_tag }}" >> tfvars.env
+          fi
+          echo "ec2_key_pair_name=zayn-key" >> tfvars.env
 
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init
 
-
-
-- name: Prepare terraform variables
-run: |
-if [ "${{ github.event.inputs.image_tag }}" = "" ]; then
-echo "image_tag=latest" >> tfvars.env
-else
-echo "image_tag=${{ github.event.inputs.image_tag }}" >> tfvars.env
-fi
-echo "ec2_key_pair_name=zayn-key" >> tfvars.env
-
-
-
-
-- name: Terraform Init
-working-directory: ./terraform
-run: terraform init
-
-
-
-
-- name: Terraform Apply
-working-directory: ./terraform
-run: terraform apply -auto-approve -var-file="../tfvars.env"
+      - name: Terraform Apply
+        working-directory: ./terraform
+        run: terraform apply -auto-approve -var-file="../tfvars.env"
