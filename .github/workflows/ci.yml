@@ -7,28 +7,18 @@ description: 'Docker image tag (e.g. short sha). Leave blank to use "latest".'
 required: false
 default: ''
 
-
-
 jobs:
 terraform:
 runs-on: ubuntu-latest
-
-
-
 
 steps:
 - name: Checkout
 uses: actions/checkout@v4
 
-
-
-
 - name: Setup Terraform
 uses: hashicorp/setup-terraform@v2
 with:
 terraform_version: 1.5.0
-
-
 
 
 - name: Configure AWS Credentials
