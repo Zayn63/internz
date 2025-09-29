@@ -1,16 +1,18 @@
-export default ({ env }) => ({
+import { StrapiDatabaseConfig } from '@strapi/strapi';
+
+const database: StrapiDatabaseConfig = ({ env }) => ({
   connection: {
     client: 'postgres',
     connection: {
-      host: env('DATABASE_HOST', 'strapi-db'),
+      host: env('DATABASE_HOST', 'your-rds-endpoint.rds.amazonaws.com'),
       port: env.int('DATABASE_PORT', 5432),
-      database: env('DATABASE_NAME', 'strapi'),
+      database: env('DATABASE_NAME', 'strapidb'),
       user: env('DATABASE_USERNAME', 'strapi'),
-      password: env('DATABASE_PASSWORD', 'strapi'),
-      ssl: env.bool('DATABASE_SSL', false),
-      schema: env('DATABASE_SCHEMA', 'public'),
+      password: env('DATABASE_PASSWORD', 'yourpassword'),
+      ssl: { rejectUnauthorized: false },
     },
-    pool: { min: 2, max: 10 },
-    acquireConnectionTimeout: env.int('DATABASE_CONNECTION_TIMEOUT', 60000),
+    debug: false,
   },
 });
+
+export default database;
