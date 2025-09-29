@@ -10,18 +10,20 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      # Docker login
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-
+      # Build & push Docker image
       - name: Build and Push Docker Image
         run: |
           docker build -t zayn63/strapi:latest .
           docker push zayn63/strapi:latest
 
+      # Configure AWS
       - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -29,14 +31,10 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
 
-      - name: Deploy ECS Service
+      # Force ECS service to redeploy with the new image
+      - name: Force ECS Deployment
         run: |
-          TASK_DEF_ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://ecs-task-definition.json \
-            --query 'taskDefinition.taskDefinitionArn' --output text)
           aws ecs update-service \
             --cluster z-strapi-cluster \
             --service z-strapi-service \
-            --task-definition $TASK_DEF_ARN \
             --force-new-deployment
-
