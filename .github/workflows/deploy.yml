@@ -1,0 +1,64 @@
+name: CI/CD - Strapi (ECR + ECS)
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ap-south-1
+      ECR_REPOSITORY: 145065858967.dkr.ecr.ap-south-1.amazonaws.com/z-strapi
+      TASK_FAMILY: z-strapi-task
+      ECS_CLUSTER: z-strapi-cluster
+      ECS_SERVICE: z-strapi-service
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin 145065858967.dkr.ecr.ap-south-1.amazonaws.com
+
+      - name: Build, tag & push image
+        run: |
+          IMAGE_TAG=${GITHUB_SHA::8}
+          IMAGE_URI="${ECR_REPOSITORY}:${IMAGE_TAG}"
+          docker build -t "$IMAGE_URI" .
+          docker push "$IMAGE_URI"
+        env:
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+
+      - name: Register new task definition (based on current)
+        id: register
+        run: |
+          IMAGE_TAG=${GITHUB_SHA::8}
+          NEW_IMAGE="${ECR_REPOSITORY}:${IMAGE_TAG}"
+          # fetch current task definition and update image
+          aws ecs describe-task-definition --task-definition ${TASK_FAMILY} > current-task-def.json
+          cat current-task-def.json \
+            | jq --arg IMG "$NEW_IMAGE" '.taskDefinition
+               | { family: .family,
+                   taskRoleArn: .taskRoleArn,
+                   executionRoleArn: .executionRoleArn,
+                   networkMode: .networkMode,
+                   containerDefinitions: (.containerDefinitions | map(.image = $IMG)),
+                   requiresCompatibilities: .requiresCompatibilities,
+                   cpu: .cpu,
+                   memory: .memory }' > new-task-def.json
+          aws ecs register-task-definition --cli-input-json file://new-task-def.json
+
+      - name: Update ECS service to use new task definition
+        run: |
+          NEW_REV_ARN=$(aws ecs list-task-definitions --family-prefix ${TASK_FAMILY} --sort DESC --max-items 1 --query 'taskDefinitionArns[0]' --output text)
+          echo "Using task-def: $NEW_REV_ARN"
+          aws ecs update-service --cluster ${ECS_CLUSTER} --service ${ECS_SERVICE} --task-definition $NEW_REV_ARN --force-new-deployment
